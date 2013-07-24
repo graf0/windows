@@ -106,21 +106,82 @@ private
 
 def load_task_hash(task_name)
   Chef::Log.debug "looking for existing tasks"
-  output = `schtasks /Query /FO LIST /V /TN \"#{task_name}\" 2> NUL`
-  if output.empty?
-    task = false
-  else
-    task = Hash.new
 
-    output.split("\n").map! do |line|
-      line.split(":", 2).map! do |field|
-        field.strip
+  require "win32ole"
+  task = {}
+  service = WIN32OLE.new("Schedule.Service")
+  service.Connect
+
+  begin
+    root_folder = service.GetFolder("\\")
+    registered_task = root_folder.GetTask("\\#{task_name}")
+    task_definition = registered_task.Definition
+  rescue WIN32OLERuntimeError => e
+    # no such task - ignore!
+  else
+    # set taskname - this way we now task exists
+    task[:TaskName] = "\\#{task_name}"
+
+    # get status
+    task[:Status] = case registered_task.State
+      when 0 then "Unknown" # TASK_STATE_UNKONWN
+      when 1 then "Disabled" # TASK_STATE_DISABLED
+      when 2 then "Queued" # TASK_STATE_QUEUED
+      when 3 then "Ready" # TASK_STATE_READY
+      when 4 then "Running" # TASK_STATE_RUNNING
       end
-    end.each do |field|
-      if field.kind_of? Array and field[0].respond_to? :to_sym
-        task[field[0].gsub(/\s+/,"").to_sym] = field[1]
+
+    # get actions
+    task_definition.Actions.each do |action|
+      if action.Type == 0 # TYPE_ACTION_EXEC
+        task[:TaskToRun] = "#{action.Path} #{action.Arguments}".strip
+        task[:Folder] = action.WorkingDirectory
+        break
       end
     end
+
+    # get user
+    task[:RunAsUser] = task_definition.Principal.UserId
+    task[:RunLevel] = case task_definition.Principal.RunLevel
+      when 0 then :limited # TASK_RUNLEVEL_LUA
+      when 1 then :highest # TASK_RUNLEVEL_HIGHEST
+      end
+
+    # # get triggers
+    # task_definition.Triggers.each do |trigger|
+    #   case trigger.Type
+    #   when 1 # TASK_TRIGGER_TIME
+    #     case trigger.Repetition.Interval
+    #     when ""
+    #       frequency, frequency_modifier = :once, nil
+    #     when /^P.*T(\d+)H$/
+    #       frequency, frequency_modifier = :hourly, $1.to_i
+    #     when /^P.*T(\d+H)?(\d+M)$/
+    #       hours =   ($1.to_s.chop || 0).to_i
+    #       minutes =   ($2.to_s.chop || 0).to_i
+    #       frequency, frequency_modifier = :minute, hours*60 + minutes
+    #     end
+    #   when 2 # TASK_TRIGGER_DAILY
+    #     frequency, frequency_modifier = :daily, trigger.DaysInterval
+    #   when 3 # TASK_TRIGGER_WEEKLY
+    #     frequency, frequency_modifier = :weekly, trigger.WeeksInterval
+    #   when 4 # TASK_TRIGGER_MONTHLY
+    #     # count numer of bits set to 1 in MonthsOfYear property
+    #     months_count = trigger.MonthsOfYear.to_s(2).split(//).inject(0) { |s,i| s + i.to_i }
+    #     frequency, frequency_modifier = :monthly, months_count % 12
+    #   when 6 # TASK_TRIGGER_IDLE
+    #     frequency, frequency_modifier = :on_idle, nil
+    #   when 8 # TASK_TRIGGER_BOOT
+    #     frequency, frequency_modifier = :on_start, nil
+    #   when 9 # TASK_TRIGGER_LOGON
+    #     frequency, frequency_modifier = :on_logon, nil
+    #   end
+
+    #   task[:Frequency] = frequency
+    #   task[:FrequencyModifier] = frequency_modifier
+
+    #   break
+    # end
   end
 
   task
