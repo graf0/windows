@@ -19,7 +19,6 @@
 #
 
 # Task Scheduler 1.0 support - used on xp/2003
-require "win32/taskscheduler"
 require 'chef/mixin/shell_out'
 include Chef::Mixin::ShellOut
 
@@ -162,6 +161,7 @@ end
 
 # Return task scheduler api object
 def task_scheduler
+  require "win32/taskscheduler"
   @task_scheduler ||= ::Win32::TaskScheduler.new
 end
 
