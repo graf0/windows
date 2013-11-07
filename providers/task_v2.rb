@@ -35,7 +35,7 @@ action :create do
     cmd += "/MO #{@new_resource.frequency_modifier} " if [:minute, :hourly, :daily, :weekly, :monthly].include?(@new_resource.frequency)
     cmd += "/SD \"#{@new_resource.start_day}\" " unless @new_resource.start_day.nil?
     cmd += "/ST \"#{@new_resource.start_time}\" " unless @new_resource.start_time.nil?
-    cmd += "/TR \"#{@new_resource.command}\" "
+    cmd += command_option
     if @new_resource.user && @new_resource.password
       cmd += "/RU \"#{@new_resource.user}\" /RP \"#{@new_resource.password}\" "
     elsif (@new_resource.user and !@new_resource.password) || (@new_resource.password and !@new_resource.user)
@@ -66,7 +66,7 @@ end
 action :change do
   if @current_resource.exists
     cmd =  "schtasks /Change /TN \"#{@current_resource.name}\" "
-    cmd += "/TR \"#{@new_resource.command}\" " if @new_resource.command
+    cmd += command_option if @new_resource.command
     if @new_resource.user && @new_resource.password
       cmd += "/RU \"#{@new_resource.user}\" /RP \"#{@new_resource.password}\" "
     elsif (@new_resource.user and !@new_resource.password) || (@new_resource.password and !@new_resource.user)
@@ -186,5 +186,23 @@ def load_current_resource
       # we consider only first trigger
       break
     end
+  end
+end
+
+# Returns properly escaped and formatted /TR options for schtasks
+def command_option
+  command, parameters = split_command(@new_resource.command)
+  "/TR " + (parameters.empty? ? "\"#{command}\"" : "\"\\\"#{command}\\\" #{parameters}\"")
+end
+
+
+# Tt splits command into application and parameters parts.
+#
+# Returns: array in form: [application_name, parameters]
+def split_command(command)
+  case command
+  when /^['"](.+?)['"]\s+(.+)/ then [$1, $2] # command in quotation marks with params
+  when /^(\S+)\s+(.+)/ then [$1, $2] # command without quotation marks with params
+  else [command, ""] # in any other case - just command, without params
   end
 end
