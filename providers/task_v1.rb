@@ -161,6 +161,7 @@ end
 
 # Return task scheduler api object
 def task_scheduler
+  gem "win32-taskscheduler", "0.2.2"
   require "win32/taskscheduler"
   @task_scheduler ||= ::Win32::TaskScheduler.new
 end

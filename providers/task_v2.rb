@@ -35,11 +35,13 @@ action :create do
     cmd += "/MO #{@new_resource.frequency_modifier} " if [:minute, :hourly, :daily, :weekly, :monthly].include?(@new_resource.frequency)
     cmd += "/SD \"#{@new_resource.start_day}\" " unless @new_resource.start_day.nil?
     cmd += "/ST \"#{@new_resource.start_time}\" " unless @new_resource.start_time.nil?
-    cmd += command_option
+    cmd += command_option + " "
     if @new_resource.user && @new_resource.password
       cmd += "/RU \"#{@new_resource.user}\" /RP \"#{@new_resource.password}\" "
     elsif (@new_resource.user and !@new_resource.password) || (@new_resource.password and !@new_resource.user)
       Chef::Log.fatal "#{@new_resource.name}: Can't specify user or password without both!"
+    else
+      cmd += "/RU SYSTEM "
     end
     cmd += "/RL HIGHEST " if @new_resource.run_level == :highest
     shell_out!(cmd, {:returns => [0]})
@@ -66,12 +68,15 @@ end
 action :change do
   if @current_resource.exists
     cmd =  "schtasks /Change /TN \"#{@current_resource.name}\" "
-    cmd += command_option if @new_resource.command
+    cmd += (command_option + " ") if @new_resource.command
     if @new_resource.user && @new_resource.password
       cmd += "/RU \"#{@new_resource.user}\" /RP \"#{@new_resource.password}\" "
     elsif (@new_resource.user and !@new_resource.password) || (@new_resource.password and !@new_resource.user)
       Chef::Log.fatal "#{@new_resource.name}: Can't specify user or password without both!"
+    else
+      cmd += "/RU SYSTEM "
     end
+    cmd += "/RL HIGHEST " if @new_resource.run_level == :highest
     shell_out!(cmd, {:returns => [0]})
     @new_resource.updated_by_last_action true
     Chef::Log.info "Change #{@new_resource} task ran"

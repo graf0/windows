@@ -18,23 +18,32 @@
 # limitations under the License.
 #
 
-# gems with precompiled binaries
-%w{ win32-api win32-service }.each do |win_gem|
-  chef_gem win_gem do
-    options '--platform=mswin32'
-    action :install
+if platform?("windows")
+  # gems with precompiled binaries
+  %w{ win32-api win32-service }.each do |win_gem|
+    chef_gem win_gem do
+      options '--platform=mswin32'
+      action :install
+    end
   end
-end
 
-# the rest
-%w{ windows-api windows-pr win32-dir win32-event win32-mutex }.each do |win_gem|
-  chef_gem win_gem do
-    action :install
+  # the rest
+  %w{ windows-api windows-pr win32-dir win32-event win32-mutex }.each do |win_gem|
+    chef_gem win_gem do
+      action :install
+    end
   end
-end
 
-# on windows xp/2003 install win32-taskscheduler
-chef_gem "win32-taskscheduler" do
-  action :install
-  only_if {node["platform_version"] =~ /^5\./}
+  if node["platform_version"] =~ /^5\./
+    # on windows xp/2003 install win32-taskscheduler in 0.2.2
+    chef_gem "win32-taskscheduler" do
+      verison "0.3.0"
+      action :remove
+    end
+
+    chef_gem "win32-taskscheduler" do
+      action :install
+      version "0.2.2"
+    end
+  end
 end
